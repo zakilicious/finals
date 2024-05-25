@@ -1,0 +1,122 @@
+code segment
+    assume cs:code, ds:code
+    org 100h
+
+begin:
+    mov ax, 0       ; Clear AX
+    mov bx, 0       ; Clear BX
+    mov cx, 0       ; Clear CX
+    mov dx, 0       ; Clear DX
+
+    ; Display menu
+    mov ah, 09h     ; DOS function: Display string
+    mov dx, offset menuText
+    int 21h
+
+menuLoop:
+    ; Get user choice
+    mov ah, 01h     ; DOS function: Read character from keyboard
+    int 21h
+    cmp al, '1'
+    je base33Conversion
+    cmp al, '4'
+    je exitProgram
+    jmp menuLoop
+
+base33Conversion:
+    ; Input a number in base 14
+    mov ah, 09h     ; DOS function: Display string
+    mov dx, offset inputPrompt
+    int 21h
+
+    mov ah, 0Ah     ; DOS function: Buffered input
+    mov dx, offset inputBuffer
+    int 21h
+    mov si, offset inputBuffer + 2 ; Skip buffer length and actual length bytes
+
+    ; Convert ASCII to actual base 14 number (assuming valid input and two digits)
+    mov al, [si]    ; Get the first digit
+    sub al, '0'     ; Convert from ASCII to number
+    cmp al, 9
+    jbe noLetterFirstDigit
+    sub al, 7       ; Adjust for letters (A-D)
+noLetterFirstDigit:
+    mov bl, 14      ; Set BL to base 14
+    mul bl          ; AX = AL * BL, AL contains the first digit, AX now contains the first digit * base 14
+    mov cx, ax      ; Store the result in CX temporarily
+    mov al, [si+1]  ; Get the second digit
+    sub al, '0'     ; Convert from ASCII to number
+    cmp al, 9
+    jbe noLetterSecondDigit
+    sub al, 7       ; Adjust for letters (A-D)
+noLetterSecondDigit:
+    add cx, ax      ; Add the second digit to CX, CX now contains the full base 10 number
+
+    ; Convert base 10 to base 33
+    mov ax, cx      ; Move the base 10 number into AX for division
+    mov bx, 33      ; Load 33 in decimal into BX for base conversion
+    xor dx, dx      ; Clear DX for division result
+    div bx          ; AX = AX / BX, DX = AX % BX
+
+    ; Convert quotient and remainder to base 33 representation
+    push dx         ; Save DX (remainder)
+    push ax         ; Save AX (quotient)
+    mov di, offset outputBuffer
+
+    ; Convert quotient to base 33 character
+    pop ax          ; Restore AX (quotient)
+    add ax, '0'     ; Convert to ASCII
+    cmp ax, '9'
+    jbe noAdjustQuotient
+    add ax, 7       ; Adjust for alphabetic characters (A-V)
+noAdjustQuotient:
+    mov [di], al    ; Store the quotient at the first position
+
+    ; Convert remainder to base 33 character
+    pop dx          ; Restore DX (remainder)
+    add dl, '0'     ; Convert to ASCII
+    cmp dl, '9'
+    jbe noAdjustRemainder
+    add dl, 7       ; Adjust for alphabetic characters (A-V)
+noAdjustRemainder:
+    mov [di+1], dl  ; Store the remainder at the second position
+
+    ; Output the result
+    mov ah, 09h     ; DOS function: Output string
+    mov dx, offset resultText
+    int 21h
+
+    mov ah, 09h     ; DOS function: Output string
+    mov dx, offset outputBuffer
+    int 21h
+
+    ; Automatic line breaks
+    mov ah, 02h     ; DOS function: Display character
+    mov dl, 13      ; Carriage return
+    int 21h
+    mov dl, 10      ; Line feed
+    int 21h
+
+    ; Display menu
+    mov ah, 09h     ; DOS function: Output string
+    mov dx, offset menuText
+    int 21h
+
+    jmp menuLoop
+
+exitProgram:
+    ; Exit program
+    mov ah, 4Ch     ; DOS function: Exit program
+    int 21h
+
+menuText db "CONVERSION BASE 14", 13, 10
+         db "1. BASE 33", 13, 10
+         db "4. EXIT", 13, 10
+         db "INPUT A NUMBER TO BE CONVERTED: $"
+inputPrompt db 13, 10, "INPUT A NUMBER IN BASE 14: $"
+inputBuffer db 3, ?, '  '  ; Buffer for input, max 2 characters
+outputBuffer db '  ', '$'  ; Buffer for output, 2 characters and '$' terminator
+resultText db 13, 10, "CONVERTED NUMBER IN BASE 33: $", 13, 10
+
+code ends
+end begin
